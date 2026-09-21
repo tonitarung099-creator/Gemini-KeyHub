@@ -2,8 +2,17 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
-import type { CreateKeysRequest, OAuthConfigInput } from '../shared/types'
-import { createKeys, enableGeminiApis, getAllKeyStrings, getKeyString, listKeys, listProjects } from './google-cloud'
+import type { CreateKeysRequest, CreateProjectInput, OAuthConfigInput } from '../shared/types'
+import {
+  createKeys,
+  createProject,
+  enableGeminiApis,
+  getAllKeyStrings,
+  getKeyString,
+  listKeys,
+  listProjects,
+  testStoredKey
+} from './google-cloud'
 import { clearAccessToken } from './google-auth'
 import { loginWithGoogle } from './oauth'
 import { isOAuthConfigured, listAccounts, removeStoredAccount, saveOAuthConfig } from './vault'
@@ -62,6 +71,7 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('projects:list', (_event, accountId: string) => listProjects(accountId))
+  ipcMain.handle('projects:create', (_event, input: CreateProjectInput) => createProject(input))
 
   ipcMain.handle(
     'apis:enable-gemini',
@@ -86,6 +96,11 @@ function registerIpc(): void {
   ipcMain.handle(
     'keys:get-all-strings',
     (_event, accountId: string, keyNames: string[]) => getAllKeyStrings(accountId, keyNames)
+  )
+
+  ipcMain.handle(
+    'keys:test',
+    (_event, accountId: string, keyName: string) => testStoredKey(accountId, keyName)
   )
 
   ipcMain.handle('clipboard:write', (_event, text: string) => {
