@@ -17,6 +17,16 @@ type GoogleErrorPayload = {
   }
 }
 
+class GoogleApiError extends Error {
+  status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.name = 'GoogleApiError'
+    this.status = status
+  }
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -50,13 +60,16 @@ async function requestJson<T>(
     try {
       payload = JSON.parse(text) as T & GoogleErrorPayload
     } catch {
-      throw new Error(`Google API mengembalikan respons yang tidak dapat dibaca (HTTP ${response.status}).`)
+      throw new GoogleApiError(
+        response.status,
+        `Google API mengembalikan respons yang tidak dapat dibaca (HTTP ${response.status}).`
+      )
     }
   }
 
   if (!response.ok) {
     const message = payload.error?.message || `Google API error ${response.status}`
-    throw new Error(message)
+    throw new GoogleApiError(response.status, message)
   }
 
   return payload as T
@@ -208,7 +221,8 @@ export async function enableGeminiApis(accountId: string, projectId: string): Pr
       body: JSON.stringify({
         serviceIds: [
           'apikeys.googleapis.com',
-          'generativelanguage.googleapis.com'
+          'generativelanguage.googleapis.com',
+          'iam.googleapis.com'
         ]
       })
     }
@@ -216,6 +230,69 @@ export async function enableGeminiApis(accountId: string, projectId: string): Pr
 
   if (payload.name) {
     await waitOperation(accountId, 'https://serviceusage.googleapis.com/v1', payload.name)
+  }
+}
+
+type ServiceAccount = {
+  name?: string
+  projectId?: string
+  uniqueId?: string
+  email?: string
+  displayName?: string
+  disabled?: boolean
+}
+
+async function ensureGeminiServiceAccount(
+  accountId: string,
+  projectId: string
+): Promise<string> {
+  const serviceAccountEmail = `gemini-keyhub@${projectId}.iam.gserviceaccount.com`
+  const encodedEmail = encodeURIComponent(serviceAccountEmail)
+  const getUrl =
+    `https://iam.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/serviceAccounts/${encodedEmail}`
+
+  try {
+    const existing = await requestJson<ServiceAccount>(accountId, getUrl)
+    if (existing.disabled) {
+      throw new Error(
+        `Service account ${serviceAccountEmail} sedang disabled. Aktifkan kembali service account tersebut di Google Cloud.`
+      )
+    }
+    return existing.email || serviceAccountEmail
+  } catch (error) {
+    if (!(error instanceof GoogleApiError) || error.status !== 404) throw error
+  }
+
+  try {
+    const created = await requestJson<ServiceAccount>(
+      accountId,
+      `https://iam.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/serviceAccounts`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          accountId: 'gemini-keyhub',
+          serviceAccount: {
+            displayName: 'Gemini KeyHub',
+            description: 'Service account untuk Gemini authorization API keys yang dibuat oleh Gemini KeyHub.'
+          }
+        })
+      }
+    )
+
+    await sleep(1200)
+    return created.email || serviceAccountEmail
+  } catch (error) {
+    if (error instanceof GoogleApiError && error.status === 409) {
+      return serviceAccountEmail
+    }
+
+    if (error instanceof GoogleApiError && error.status === 403) {
+      throw new Error(
+        'Akun ini tidak punya izin membuat service account untuk authorization key. Diperlukan izin iam.serviceAccounts.create dan iam.serviceAccountApiKeyBindings.create pada project.'
+      )
+    }
+
+    throw error
   }
 }
 
@@ -257,7 +334,8 @@ export async function getKeyString(accountId: string, keyName: string): Promise<
 async function createOneKey(
   accountId: string,
   projectNumber: string,
-  displayName: string
+  displayName: string,
+  serviceAccountEmail: string
 ): Promise<CreatedKey> {
   const operation = await requestJson<Operation<KeySummary>>(
     accountId,
@@ -270,7 +348,8 @@ async function createOneKey(
           apiTargets: [
             { service: 'generativelanguage.googleapis.com' }
           ]
-        }
+        },
+        serviceAccountEmail
       })
     }
   )
@@ -284,7 +363,11 @@ async function createOneKey(
   if (!key?.name) throw new Error('API key selesai dibuat tetapi metadata key tidak ditemukan.')
 
   const keyString = await getKeyString(accountId, key.name)
-  return { ...key, keyString }
+  return {
+    ...key,
+    serviceAccountEmail: key.serviceAccountEmail || serviceAccountEmail,
+    keyString
+  }
 }
 
 export async function createKeys(request: CreateKeysRequest): Promise<BatchCreateKeysResult> {
@@ -294,6 +377,18 @@ export async function createKeys(request: CreateKeysRequest): Promise<BatchCreat
   }
 
   await enableGeminiApis(request.accountId, request.projectId)
+
+  let serviceAccountEmail: string
+  try {
+    serviceAccountEmail = await ensureGeminiServiceAccount(
+      request.accountId,
+      request.projectId
+    )
+  } catch (error) {
+    throw new Error(
+      `Gagal menyiapkan Gemini authorization key: ${asErrorMessage(error)}`
+    )
+  }
 
   const created: CreatedKey[] = []
   const prefix = (request.prefix || 'gemini-keyhub').trim().slice(0, 40) || 'gemini-keyhub'
@@ -306,13 +401,15 @@ export async function createKeys(request: CreateKeysRequest): Promise<BatchCreat
       const key = await createOneKey(
         request.accountId,
         request.projectNumber,
-        displayName
+        displayName,
+        serviceAccountEmail
       )
       created.push(key)
     } catch (error) {
       return {
         requested: count,
         created,
+        serviceAccountEmail,
         error: `Berhenti pada key ke-${index}: ${asErrorMessage(error)}`
       }
     }
@@ -322,7 +419,8 @@ export async function createKeys(request: CreateKeysRequest): Promise<BatchCreat
 
   return {
     requested: count,
-    created
+    created,
+    serviceAccountEmail
   }
 }
 
