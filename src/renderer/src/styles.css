@@ -670,3 +670,37 @@ td .subtle {
   color: #66728d;
   font-size: 10px;
 }
+
+
+.key-type {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 58px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+}
+
+.key-type.auth {
+  color: #9ce1bf;
+  border: 1px solid rgba(94, 211, 154, 0.35);
+  background: rgba(94, 211, 154, 0.10);
+}
+
+.key-type.legacy {
+  color: #f2c18e;
+  border: 1px solid rgba(229, 162, 90, 0.35);
+  background: rgba(229, 162, 90, 0.10);
+}
+
+.oauth-current {
+  margin-top: 10px !important;
+  color: #9aa7c1 !important;
+}
+
+.setup-callout button {
+  margin-top: 10px;
+}
