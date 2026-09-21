@@ -20,6 +20,7 @@ export type KeySummary = {
   createTime?: string
   updateTime?: string
   deleteTime?: string
+  serviceAccountEmail?: string
 }
 
 export type CreatedKey = KeySummary & {
@@ -28,6 +29,7 @@ export type CreatedKey = KeySummary & {
 
 export type AppState = {
   oauthConfigured: boolean
+  oauthClientHint?: string
   accounts: AccountSummary[]
 }
 
@@ -53,6 +55,7 @@ export type CreateKeysRequest = {
 export type BatchCreateKeysResult = {
   requested: number
   created: CreatedKey[]
+  serviceAccountEmail?: string
   error?: string
 }
 
@@ -66,6 +69,7 @@ export type KeyHubApi = {
   getState: () => Promise<AppState>
   saveOAuthConfig: (input: OAuthConfigInput) => Promise<AppState>
   importOAuthConfig: () => Promise<AppState | null>
+  clearOAuthConfig: () => Promise<AppState>
   openOAuthSetup: () => Promise<void>
   loginGoogle: () => Promise<AccountSummary>
   removeAccount: (accountId: string) => Promise<AppState>
