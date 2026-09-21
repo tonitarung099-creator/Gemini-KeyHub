@@ -1,6 +1,6 @@
 {
   "name": "gemini-keyhub",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Multi-account Google Cloud and Gemini API key manager",
   "main": "./out/main/index.js",
@@ -10,7 +10,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
-    "dist": "npm run build && electron-builder --win nsis --publish never"
+    "dist": "npm run build && electron-builder --win portable --publish never"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^3.0.0",
@@ -42,17 +42,11 @@
     "win": {
       "target": [
         {
-          "target": "nsis",
+          "target": "portable",
           "arch": ["x64"]
         }
       ]
     },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
-    },
-    "artifactName": "Gemini-KeyHub-${version}-Setup.${ext}"
+    "artifactName": "Gemini-KeyHub-${version}-Portable.${ext}"
   }
 }
