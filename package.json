@@ -1,0 +1,59 @@
+{
+  "name": "gemini-keyhub",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multi-account Google Cloud and Gemini API key manager",
+  "main": "./out/main/index.js",
+  "author": "Gemini KeyHub",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
+    "dist": "npm run build && electron-builder --win nsis"
+  },
+  "dependencies": {
+    "@electron-toolkit/utils": "^3.0.0",
+    "electron-store": "^10.0.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@electron-toolkit/tsconfig": "^1.0.1",
+    "@types/node": "^22.15.3",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^4.4.1",
+    "electron": "^37.2.6",
+    "electron-builder": "^26.0.12",
+    "electron-vite": "^4.0.0",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.4"
+  },
+  "build": {
+    "appId": "com.geminikeyhub.desktop",
+    "productName": "Gemini KeyHub",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "artifactName": "Gemini-KeyHub-${version}-Setup.${ext}"
+  }
+}
