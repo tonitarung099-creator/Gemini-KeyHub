@@ -103,14 +103,14 @@ async function waitForOAuthCode(clientId: string): Promise<OAuthCode> {
     })
 
     const timeout = setTimeout(() => {
-      finish(new Error('Login Google kedaluwarsa. Silakan coba lagi.'))
+      finish(new Error('Login Google tidak kembali ke aplikasi. Jika browser menampilkan 401 invalid_client, buka OAuth Settings lalu import JSON OAuth Client bertipe Desktop app yang baru dari Google Cloud.'))
     }, 5 * 60 * 1000)
   })
 }
 
 export async function loginWithGoogle(): Promise<AccountSummary> {
   const oauth = await getOAuthConfig()
-  if (!oauth) throw new Error('Isi OAuth Client ID di Settings terlebih dahulu.')
+  if (!oauth) throw new Error('OAuth belum dikonfigurasi. Buka OAuth Settings dan import JSON OAuth Client bertipe Desktop app.')
 
   const { code, redirectUri, verifier } = await waitForOAuthCode(oauth.clientId)
 
