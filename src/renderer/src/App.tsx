@@ -184,9 +184,9 @@ export default function App() {
         ? ` Catatan: ${result.warnings.join(' | ')}`
         : ''
       setNotice(
-        `OAuth otomatis siap untuk ${result.account}. Project: ${result.projectId}. Client: ${result.clientIdHint}.${warningText} Sekarang klik Login Google.`
+        `OAuth otomatis siap dan ${result.account} sudah masuk ke Gemini KeyHub. Project: ${result.projectId}. Client: ${result.clientIdHint}.${warningText}`
       )
-      setSettingsOpen(true)
+      setSettingsOpen(false)
     } catch (err) {
       setError(errorMessage(err))
       setSettingsOpen(true)
@@ -813,7 +813,7 @@ export default function App() {
                 <strong>Setup otomatis dari gclientid</strong>
                 <p>
                   Direkomendasikan. Gemini KeyHub membuka Chrome khusus, menyiapkan project OAuth,
-                  membuat Desktop Client, lalu mengimpor Client ID/Secret otomatis.
+                  membuat Desktop Client, mengotorisasi akun, lalu menyimpan login ke vault terenkripsi otomatis.
                 </p>
               </div>
               <button
