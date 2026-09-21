@@ -1,4 +1,12 @@
-import type { CreateKeysRequest, CreatedKey, KeySummary, ProjectSummary } from '../shared/types'
+import type {
+  BatchCreateKeysResult,
+  CreateKeysRequest,
+  CreateProjectInput,
+  CreatedKey,
+  KeySummary,
+  KeyTestResult,
+  ProjectSummary
+} from '../shared/types'
 import { clearAccessToken, getAccessToken } from './google-auth'
 
 type GoogleErrorPayload = {
@@ -11,6 +19,10 @@ type GoogleErrorPayload = {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function asErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 async function requestJson<T>(
@@ -32,7 +44,15 @@ async function requestJson<T>(
   }
 
   const text = await response.text()
-  const payload = text ? JSON.parse(text) as T & GoogleErrorPayload : {} as T & GoogleErrorPayload
+  let payload = {} as T & GoogleErrorPayload
+
+  if (text) {
+    try {
+      payload = JSON.parse(text) as T & GoogleErrorPayload
+    } catch {
+      throw new Error(`Google API mengembalikan respons yang tidak dapat dibaca (HTTP ${response.status}).`)
+    }
+  }
 
   if (!response.ok) {
     const message = payload.error?.message || `Google API error ${response.status}`
@@ -72,6 +92,28 @@ async function waitOperation<T>(
   throw new Error('Operasi Google terlalu lama dan dihentikan oleh aplikasi.')
 }
 
+function normalizeProject(project: {
+  name?: string
+  projectId?: string
+  displayName?: string
+  state?: string
+}): ProjectSummary {
+  if (!project.name || !project.projectId) {
+    throw new Error('Google mengembalikan data project yang tidak lengkap.')
+  }
+
+  const number = project.name.split('/').pop()
+  if (!number) throw new Error('Project number tidak ditemukan.')
+
+  return {
+    name: project.name,
+    number,
+    projectId: project.projectId,
+    displayName: project.displayName || project.projectId,
+    state: project.state || 'STATE_UNSPECIFIED'
+  }
+}
+
 export async function listProjects(accountId: string): Promise<ProjectSummary[]> {
   const projects: ProjectSummary[] = []
   let pageToken = ''
@@ -79,6 +121,7 @@ export async function listProjects(accountId: string): Promise<ProjectSummary[]>
   do {
     const url = new URL('https://cloudresourcemanager.googleapis.com/v3/projects:search')
     url.searchParams.set('pageSize', '100')
+    url.searchParams.set('query', 'state:ACTIVE')
     if (pageToken) url.searchParams.set('pageToken', pageToken)
 
     const payload = await requestJson<{
@@ -92,17 +135,11 @@ export async function listProjects(accountId: string): Promise<ProjectSummary[]>
     }>(accountId, url.toString())
 
     for (const project of payload.projects ?? []) {
-      if (!project.name || !project.projectId) continue
-      const number = project.name.split('/').pop()
-      if (!number) continue
-
-      projects.push({
-        name: project.name,
-        number,
-        projectId: project.projectId,
-        displayName: project.displayName || project.projectId,
-        state: project.state || 'STATE_UNSPECIFIED'
-      })
+      try {
+        projects.push(normalizeProject(project))
+      } catch {
+        // Skip malformed entries from the remote response.
+      }
     }
 
     pageToken = payload.nextPageToken || ''
@@ -111,6 +148,55 @@ export async function listProjects(accountId: string): Promise<ProjectSummary[]>
   return projects
     .filter((project) => project.state === 'ACTIVE')
     .sort((a, b) => a.displayName.localeCompare(b.displayName))
+}
+
+export async function createProject(input: CreateProjectInput): Promise<ProjectSummary> {
+  const projectId = input.projectId.trim()
+  const displayName = input.displayName.trim()
+
+  if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(projectId)) {
+    throw new Error(
+      'Project ID harus 6–30 karakter, diawali huruf kecil, hanya huruf kecil/angka/tanda minus, dan tidak boleh diakhiri tanda minus.'
+    )
+  }
+
+  if (displayName.length < 4 || displayName.length > 30 || !/[A-Za-z0-9]$/.test(displayName)) {
+    throw new Error('Nama project harus 4–30 karakter dan diakhiri huruf atau angka.')
+  }
+
+  const operation = await requestJson<Operation<{
+    name?: string
+    projectId?: string
+    displayName?: string
+    state?: string
+  }>>(
+    input.accountId,
+    'https://cloudresourcemanager.googleapis.com/v3/projects',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        projectId,
+        displayName
+      })
+    }
+  )
+
+  if (!operation.name) throw new Error('Google tidak mengembalikan operation name untuk project.')
+
+  const project = await waitOperation<{
+    name?: string
+    projectId?: string
+    displayName?: string
+    state?: string
+  }>(
+    input.accountId,
+    'https://cloudresourcemanager.googleapis.com/v3',
+    operation.name,
+    180_000
+  )
+
+  if (!project) throw new Error('Project selesai dibuat tetapi datanya tidak ditemukan.')
+  return normalizeProject(project)
 }
 
 export async function enableGeminiApis(accountId: string, projectId: string): Promise<void> {
@@ -201,7 +287,7 @@ async function createOneKey(
   return { ...key, keyString }
 }
 
-export async function createKeys(request: CreateKeysRequest): Promise<CreatedKey[]> {
+export async function createKeys(request: CreateKeysRequest): Promise<BatchCreateKeysResult> {
   const count = Math.trunc(request.count)
   if (!Number.isFinite(count) || count < 1 || count > 20) {
     throw new Error('Jumlah key per proses harus antara 1 sampai 20.')
@@ -209,22 +295,35 @@ export async function createKeys(request: CreateKeysRequest): Promise<CreatedKey
 
   await enableGeminiApis(request.accountId, request.projectId)
 
-  const result: CreatedKey[] = []
+  const created: CreatedKey[] = []
   const prefix = (request.prefix || 'gemini-keyhub').trim().slice(0, 40) || 'gemini-keyhub'
   const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)
 
   for (let index = 1; index <= count; index += 1) {
     const displayName = `${prefix}-${stamp}-${String(index).padStart(2, '0')}`
-    const key = await createOneKey(
-      request.accountId,
-      request.projectNumber,
-      displayName
-    )
-    result.push(key)
+
+    try {
+      const key = await createOneKey(
+        request.accountId,
+        request.projectNumber,
+        displayName
+      )
+      created.push(key)
+    } catch (error) {
+      return {
+        requested: count,
+        created,
+        error: `Berhenti pada key ke-${index}: ${asErrorMessage(error)}`
+      }
+    }
+
     if (index < count) await sleep(350)
   }
 
-  return result
+  return {
+    requested: count,
+    created
+  }
 }
 
 export async function getAllKeyStrings(accountId: string, keyNames: string[]): Promise<string[]> {
@@ -237,4 +336,50 @@ export async function getAllKeyStrings(accountId: string, keyNames: string[]): P
   }
 
   return values
+}
+
+async function testGeminiKeyString(keyString: string): Promise<KeyTestResult> {
+  const url = new URL('https://generativelanguage.googleapis.com/v1beta/models')
+  url.searchParams.set('pageSize', '1')
+
+  const response = await fetch(url, {
+    headers: {
+      'x-goog-api-key': keyString
+    }
+  })
+
+  const text = await response.text()
+  let payload: {
+    models?: Array<{ name?: string }>
+    error?: { message?: string }
+  } = {}
+
+  if (text) {
+    try {
+      payload = JSON.parse(text) as typeof payload
+    } catch {
+      return {
+        ok: false,
+        message: `Gemini API memberi respons yang tidak dapat dibaca (HTTP ${response.status}).`
+      }
+    }
+  }
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      message: payload.error?.message || `Gemini API error ${response.status}`
+    }
+  }
+
+  return {
+    ok: true,
+    message: 'Key valid dan dapat mengakses Gemini API.',
+    sampleModel: payload.models?.[0]?.name
+  }
+}
+
+export async function testStoredKey(accountId: string, keyName: string): Promise<KeyTestResult> {
+  const keyString = await getKeyString(accountId, keyName)
+  return testGeminiKeyString(keyString)
 }
