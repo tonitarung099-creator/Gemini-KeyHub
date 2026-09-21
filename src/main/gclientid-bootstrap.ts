@@ -5,10 +5,12 @@ import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { OAuthBootstrapResult } from '../shared/types'
 
-type BridgeResult = OAuthBootstrapResult & {
+export type BridgeResult = OAuthBootstrapResult & {
   clientId: string
   clientSecret?: string
   clientPath: string
+  refreshToken: string
+  accessToken?: string
 }
 
 const CDP_PORT = 9223
