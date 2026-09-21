@@ -11,11 +11,33 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install gclientid helper dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller
+          python -m pip install "gclientid @ git+https://github.com/AnswerDotAI/gclientid.git@ca474e61d6c7c5c3b4692c5b73fdfd1de9188a79"
+
+      - name: Build gclientid bridge
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --onefile --name gclientid-bridge --distpath dist-helper --workpath build-helper --collect-all gclientid --collect-all fastcdp scripts/gclientid_bridge.py
+
+      - name: Smoke test gclientid bridge
+        shell: pwsh
+        run: |
+          & .\dist-helper\gclientid-bridge.exe selftest
 
       - name: Setup Node
         uses: actions/setup-node@v4
