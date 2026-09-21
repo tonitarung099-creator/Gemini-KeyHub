@@ -1,4 +1,4 @@
-name: Build Windows
+name: Build Windows Portable
 
 on:
   push:
@@ -28,12 +28,12 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Build installer
+      - name: Build portable EXE
         run: npm run dist
 
-      - name: Upload Windows installer
+      - name: Upload portable EXE
         uses: actions/upload-artifact@v4
         with:
-          name: Gemini-KeyHub-Windows
+          name: Gemini-KeyHub-Portable
           path: release/*.exe
           if-no-files-found: error
