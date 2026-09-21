@@ -1,6 +1,6 @@
 {
   "name": "gemini-keyhub",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Multi-account Google Cloud and Gemini API key manager",
   "main": "./out/main/index.js",
