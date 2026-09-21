@@ -186,7 +186,14 @@ export async function bootstrapOAuthWithGclientid(): Promise<BridgeResult> {
   await launchBootstrapChrome()
   const outputDir = join(app.getPath('userData'), 'gclientid')
   await mkdir(outputDir, { recursive: true })
-  return runBridge(outputDir)
+
+  const result = await runBridge(outputDir)
+
+  // The bridge needs temporary client/token files while provisioning.
+  // Gemini KeyHub stores the imported credentials in Electron safeStorage,
+  // so do not leave plaintext OAuth artifacts behind after success.
+  await rm(outputDir, { recursive: true, force: true })
+  return result
 }
 
 export async function resetGclientidBootstrapState(): Promise<void> {
