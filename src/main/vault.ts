@@ -27,7 +27,7 @@ function vaultPath(): string {
 
 function encrypt(value: string): string {
   if (!safeStorage.isEncryptionAvailable()) {
-    throw new Error('Penyimpanan terenkripsi OS belum tersedia. Coba login kembali setelah Windows siap.')
+    throw new Error('Penyimpanan terenkripsi OS belum tersedia. Coba lagi setelah Windows siap.')
   }
   return safeStorage.encryptString(value).toString('base64')
 }
@@ -61,9 +61,15 @@ async function writeVault(data: VaultData): Promise<void> {
 }
 
 export async function saveOAuthConfig(input: OAuthConfigInput): Promise<void> {
-  const clientId = input.clientId.trim()
-  const clientSecret = input.clientSecret?.trim() || undefined
+  const clientId = input.clientId.trim().replace(/^["']|["']$/g, '')
+  const clientSecret = input.clientSecret?.trim().replace(/^["']|["']$/g, '') || undefined
+
   if (!clientId) throw new Error('OAuth Client ID wajib diisi.')
+  if (!clientId.endsWith('.apps.googleusercontent.com')) {
+    throw new Error(
+      'Client ID tidak terlihat seperti OAuth Client ID Google. Gunakan Client ID dari OAuth client bertipe Desktop app.'
+    )
+  }
 
   const vault = await readVault()
   vault.oauth = {
