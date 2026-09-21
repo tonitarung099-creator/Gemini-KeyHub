@@ -1,6 +1,6 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
-import { writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import type { CreateKeysRequest, CreateProjectInput, OAuthConfigInput } from '../shared/types'
 import {
@@ -22,6 +22,49 @@ async function getState() {
     oauthConfigured: await isOAuthConfigured(),
     accounts: await listAccounts()
   }
+}
+
+async function importOAuthJson(): Promise<ReturnType<typeof getState> | null> {
+  const result = await dialog.showOpenDialog({
+    title: 'Import Google OAuth Desktop Client JSON',
+    properties: ['openFile'],
+    filters: [{ name: 'Google OAuth JSON', extensions: ['json'] }]
+  })
+
+  if (result.canceled || result.filePaths.length === 0) return null
+
+  const raw = await readFile(result.filePaths[0], 'utf8')
+  let parsed: {
+    installed?: {
+      client_id?: string
+      client_secret?: string
+      auth_uri?: string
+      token_uri?: string
+    }
+    web?: unknown
+  }
+
+  try {
+    parsed = JSON.parse(raw) as typeof parsed
+  } catch {
+    throw new Error('File yang dipilih bukan JSON OAuth Google yang valid.')
+  }
+
+  if (!parsed.installed?.client_id) {
+    if (parsed.web) {
+      throw new Error(
+        'File ini adalah OAuth client bertipe Web application. Buat OAuth Client baru bertipe Desktop app lalu download JSON-nya.'
+      )
+    }
+    throw new Error('File JSON ini tidak berisi konfigurasi OAuth Desktop app Google.')
+  }
+
+  await saveOAuthConfig({
+    clientId: parsed.installed.client_id,
+    clientSecret: parsed.installed.client_secret
+  })
+
+  return getState()
 }
 
 function createWindow(): void {
@@ -60,6 +103,12 @@ function registerIpc(): void {
   ipcMain.handle('oauth:save-config', async (_event, input: OAuthConfigInput) => {
     await saveOAuthConfig(input)
     return getState()
+  })
+
+  ipcMain.handle('oauth:import-config', () => importOAuthJson())
+
+  ipcMain.handle('oauth:open-setup', async () => {
+    await shell.openExternal('https://console.cloud.google.com/apis/credentials')
   })
 
   ipcMain.handle('oauth:login', () => loginWithGoogle())
