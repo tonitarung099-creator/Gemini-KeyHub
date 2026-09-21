@@ -69,7 +69,7 @@ export default function App() {
       if (current && state.accounts.some((account) => account.id === current)) return current
       return state.accounts[0]?.id || ''
     })
-    if (!state.oauthConfigured) setSettingsOpen(true)
+    if (!state.oauthConfigured || state.accounts.length === 0) setSettingsOpen(true)
   }
 
   async function loadProjects(accountId: string, preferredProjectNumber?: string) {
@@ -162,8 +162,29 @@ export default function App() {
       setAppState(state)
       setClientId('')
       setClientSecret('')
-      setSettingsOpen(false)
-      setNotice('OAuth Desktop JSON berhasil diimpor. Sekarang klik Tambah Akun Google.')
+      setSettingsOpen(true)
+      setNotice('OAuth Desktop JSON berhasil diimpor. Sekarang login ulang dengan Client ID baru.')
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function resetOAuth() {
+    if (!confirm('Reset OAuth lokal? Semua login akun yang tersimpan akan dihapus dari aplikasi dan Anda harus login ulang. API key di Google Cloud tidak akan dihapus.')) {
+      return
+    }
+    setBusy('settings')
+    setError('')
+    try {
+      const state = await window.keyHub.clearOAuthConfig()
+      setAppState(state)
+      setSelectedAccountId('')
+      setProjects([])
+      setKeys([])
+      setNotice('OAuth lokal sudah direset. Import OAuth Desktop JSON yang baru.')
+      setSettingsOpen(true)
     } catch (err) {
       setError(errorMessage(err))
     } finally {
@@ -179,6 +200,7 @@ export default function App() {
       const account = await window.keyHub.loginGoogle()
       await refreshState()
       setSelectedAccountId(account.id)
+      setSettingsOpen(false)
       setNotice(`${account.email} berhasil ditambahkan.`)
     } catch (err) {
       setError(errorMessage(err))
@@ -248,7 +270,7 @@ export default function App() {
     setBusy('create')
     setError('')
     setCreatedKeys([])
-    setNotice(`Membuat ${count} key. Jangan tutup aplikasi selama proses ini.`)
+    setNotice(`Membuat ${count} authorization key Gemini. Jangan tutup aplikasi selama proses ini.`)
     try {
       const result = await window.keyHub.createKeys({
         accountId: selectedAccount.id,
@@ -261,7 +283,9 @@ export default function App() {
       if (result.error) {
         setError(`${result.created.length}/${result.requested} key berhasil dibuat. ${result.error}`)
       } else {
-        setNotice(`${result.created.length} API key berhasil dibuat.`)
+        setNotice(
+          `${result.created.length} authorization key berhasil dibuat${result.serviceAccountEmail ? ` dan dibind ke ${result.serviceAccountEmail}` : ''}.`
+        )
       }
       await loadKeys(selectedAccount.id, selectedProject.number)
       setCreatedKeys(result.created)
@@ -527,10 +551,10 @@ export default function App() {
         <section className="panel create-panel">
           <div>
             <p className="section-label">BUAT GEMINI API KEYS</p>
-            <h2>Buat key dalam satu aksi</h2>
+            <h2>Buat authorization key dalam satu aksi</h2>
             <p>
-              Setiap key baru dibatasi ke Gemini API
-              <code>generativelanguage.googleapis.com</code>.
+              Key baru dibatasi ke <code>generativelanguage.googleapis.com</code> dan
+              dibind ke service account khusus project agar sesuai model autentikasi Gemini terbaru.
             </p>
           </div>
           <div className="create-controls">
@@ -617,6 +641,7 @@ export default function App() {
                 <tr>
                   <th>Nama</th>
                   <th>API Key</th>
+                  <th>Tipe</th>
                   <th>Status</th>
                   <th>Dibuat</th>
                   <th />
@@ -633,6 +658,14 @@ export default function App() {
                       </td>
                       <td>
                         <code>{revealed[key.name] ? shortKey(revealed[key.name]) : '••••••••••••••••••••'}</code>
+                      </td>
+                      <td>
+                        <span
+                          className={key.serviceAccountEmail ? 'key-type auth' : 'key-type legacy'}
+                          title={key.serviceAccountEmail || 'Standard API key lama'}
+                        >
+                          {key.serviceAccountEmail ? 'AUTH' : 'LEGACY'}
+                        </span>
                       </td>
                       <td>
                         {result ? (
@@ -669,7 +702,7 @@ export default function App() {
                 })}
                 {keys.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="empty">
+                    <td colSpan={6} className="empty">
                       {busy === 'keys' ? 'Membaca API keys…' : 'Belum ada key atau API Keys API belum aktif.'}
                     </td>
                   </tr>
@@ -757,6 +790,21 @@ export default function App() {
                 Error 401 “OAuth client was not found” berarti Client ID yang dipakai Google tidak valid,
                 sudah dihapus, atau bukan Client ID yang benar.
               </p>
+              {appState.oauthClientHint && (
+                <p className="oauth-current">
+                  Tersimpan saat ini: <code>{appState.oauthClientHint}</code>
+                </p>
+              )}
+              {appState.oauthConfigured && (
+                <button
+                  type="button"
+                  className="ghost danger small"
+                  disabled={busy === 'settings'}
+                  onClick={() => void resetOAuth()}
+                >
+                  Reset OAuth lama
+                </button>
+              )}
             </div>
 
             <div className="setup-steps">
@@ -788,12 +836,20 @@ export default function App() {
               <div className="setup-step">
                 <span>3</span>
                 <div>
-                  <strong>Tambah akun Google</strong>
+                  <strong>Login akun Google</strong>
                   <p>
                     Login dibuka di browser default Windows. Google tidak mengizinkan login OAuth di browser
                     tertanam/webview aplikasi desktop.
                   </p>
                 </div>
+                <button
+                  type="button"
+                  className="primary small"
+                  disabled={!appState.oauthConfigured || Boolean(busy)}
+                  onClick={() => void addAccount()}
+                >
+                  Login Google
+                </button>
               </div>
             </div>
 
