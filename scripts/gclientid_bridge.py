@@ -115,6 +115,10 @@ async def bootstrap(output_dir: Path) -> None:
 
 
 def main() -> int:
+    if len(sys.argv) == 2 and sys.argv[1] == "selftest":
+        emit("GKH_SELFTEST=", {"ok": True, "gclientid": True})
+        return 0
+
     if len(sys.argv) != 3 or sys.argv[1] != "bootstrap":
         emit("GKH_ERROR=", {"message": "Usage: gclientid-bridge bootstrap <output_dir>"})
         return 2
