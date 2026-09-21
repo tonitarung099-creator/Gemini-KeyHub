@@ -12,7 +12,9 @@ import sys
 from pathlib import Path
 
 from gclientid.config import project_id
+from gclientid.creds import oauth_creds
 from gclientid.oauth import (
+    authorize_google,
     connect_browser,
     console_account,
     create_client,
@@ -20,7 +22,7 @@ from gclientid.oauth import (
     set_scopes,
     setup_auth,
 )
-from gclientid.projects import ensure_project_ui
+from gclientid.projects import enable_apis, ensure_project_ui
 
 CLOUD_SCOPE = "https://www.googleapis.com/auth/cloud-platform"
 
@@ -87,12 +89,40 @@ async def bootstrap(output_dir: Path) -> None:
         if not client_id:
             raise RuntimeError("OAuth Desktop Client selesai dibuat tetapi Client ID tidak ditemukan.")
 
+        emit("GKH_STATUS=", {"step": "authorize", "message": "Mengotorisasi akun Google..."})
+        token_path = output_dir / "oauth-token-owner-desktop.json"
+        token = await authorize_google(
+            client_path,
+            token_path,
+            preset="cloud",
+            account=email,
+            cdp=cdp,
+            remote=False,
+            open_browser=True,
+        )
+
+        emit("GKH_STATUS=", {"step": "apis", "message": "Mengaktifkan API yang dibutuhkan..."})
+        creds = await oauth_creds(token_path, scopes=[CLOUD_SCOPE], reauth=False)
+        await enable_apis(
+            creds,
+            f"projects/{pid}",
+            [
+                "cloudresourcemanager.googleapis.com",
+                "serviceusage.googleapis.com",
+                "iam.googleapis.com",
+                "apikeys.googleapis.com",
+                "generativelanguage.googleapis.com",
+            ],
+        )
+
         result = {
             "account": email,
             "projectId": pid,
             "clientPath": str(client_path),
             "clientId": client_id,
             "clientSecret": client_secret,
+            "refreshToken": token.get("refresh_token"),
+            "accessToken": token.get("token"),
             "clientIdHint": (
                 f"{client_id[:6]}…{client_id[-28:]}"
                 if len(client_id) > 40
@@ -100,6 +130,8 @@ async def bootstrap(output_dir: Path) -> None:
             ),
             "warnings": warnings,
         }
+        if not result.get("refreshToken"):
+            raise RuntimeError("OAuth selesai tetapi refresh token tidak ditemukan.")
         emit("GKH_RESULT=", result)
     finally:
         if page is not None:
