@@ -9,6 +9,8 @@ import type {
 const api: KeyHubApi = {
   getState: () => ipcRenderer.invoke('app:get-state'),
   saveOAuthConfig: (input: OAuthConfigInput) => ipcRenderer.invoke('oauth:save-config', input),
+  importOAuthConfig: () => ipcRenderer.invoke('oauth:import-config'),
+  openOAuthSetup: () => ipcRenderer.invoke('oauth:open-setup'),
   loginGoogle: () => ipcRenderer.invoke('oauth:login'),
   removeAccount: (accountId: string) => ipcRenderer.invoke('account:remove', accountId),
   listProjects: (accountId: string) => ipcRenderer.invoke('projects:list', accountId),
