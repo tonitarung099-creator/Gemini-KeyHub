@@ -15,11 +15,19 @@ import {
 } from './google-cloud'
 import { clearAccessToken } from './google-auth'
 import { loginWithGoogle } from './oauth'
-import { isOAuthConfigured, listAccounts, removeStoredAccount, saveOAuthConfig } from './vault'
+import {
+  clearOAuthConfig,
+  getOAuthClientHint,
+  isOAuthConfigured,
+  listAccounts,
+  removeStoredAccount,
+  saveOAuthConfig
+} from './vault'
 
 async function getState() {
   return {
     oauthConfigured: await isOAuthConfigured(),
+    oauthClientHint: await getOAuthClientHint(),
     accounts: await listAccounts()
   }
 }
@@ -107,8 +115,13 @@ function registerIpc(): void {
 
   ipcMain.handle('oauth:import-config', () => importOAuthJson())
 
+  ipcMain.handle('oauth:clear-config', async () => {
+    await clearOAuthConfig()
+    return getState()
+  })
+
   ipcMain.handle('oauth:open-setup', async () => {
-    await shell.openExternal('https://console.cloud.google.com/apis/credentials')
+    await shell.openExternal('https://console.cloud.google.com/auth/clients')
   })
 
   ipcMain.handle('oauth:login', () => loginWithGoogle())
