@@ -24,7 +24,7 @@ async function getState() {
   }
 }
 
-async function importOAuthJson(): Promise<ReturnType<typeof getState> | null> {
+async function importOAuthJson() {
   const result = await dialog.showOpenDialog({
     title: 'Import Google OAuth Desktop Client JSON',
     properties: ['openFile'],
