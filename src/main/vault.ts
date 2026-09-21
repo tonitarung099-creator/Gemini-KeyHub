@@ -72,10 +72,31 @@ export async function saveOAuthConfig(input: OAuthConfigInput): Promise<void> {
   }
 
   const vault = await readVault()
+  let oldClientId = ''
+  if (vault.oauth?.clientId) {
+    try {
+      oldClientId = decrypt(vault.oauth.clientId)
+    } catch {
+      oldClientId = ''
+    }
+  }
+
   vault.oauth = {
     clientId: encrypt(clientId),
     clientSecret: clientSecret ? encrypt(clientSecret) : undefined
   }
+
+  if (oldClientId && oldClientId !== clientId) {
+    vault.accounts = []
+  }
+
+  await writeVault(vault)
+}
+
+export async function clearOAuthConfig(): Promise<void> {
+  const vault = await readVault()
+  delete vault.oauth
+  vault.accounts = []
   await writeVault(vault)
 }
 
@@ -86,6 +107,14 @@ export async function getOAuthConfig(): Promise<OAuthConfigInput | null> {
     clientId: decrypt(vault.oauth.clientId),
     clientSecret: vault.oauth.clientSecret ? decrypt(vault.oauth.clientSecret) : undefined
   }
+}
+
+export async function getOAuthClientHint(): Promise<string | undefined> {
+  const config = await getOAuthConfig()
+  if (!config?.clientId) return undefined
+  const [head] = config.clientId.split('.apps.googleusercontent.com')
+  const visible = head.length > 10 ? `${head.slice(0, 6)}…${head.slice(-4)}` : head
+  return `${visible}.apps.googleusercontent.com`
 }
 
 export async function isOAuthConfigured(): Promise<boolean> {
