@@ -1,6 +1,6 @@
 {
   "name": "gemini-keyhub",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Multi-account Google Cloud and Gemini API key manager",
   "main": "./out/main/index.js",
@@ -37,7 +37,9 @@
     },
     "files": [
       "out/**/*",
-      "package.json"
+      "package.json",
+      "THIRD_PARTY_NOTICES.md",
+      "third_party/**/*"
     ],
     "win": {
       "target": [
@@ -49,6 +51,20 @@
         }
       ]
     },
-    "artifactName": "Gemini-KeyHub-${version}-Portable.${ext}"
+    "artifactName": "Gemini-KeyHub-${version}-Portable.${ext}",
+    "extraResources": [
+      {
+        "from": "dist-helper/gclientid-bridge.exe",
+        "to": "gclientid-bridge.exe"
+      },
+      {
+        "from": "THIRD_PARTY_NOTICES.md",
+        "to": "THIRD_PARTY_NOTICES.md"
+      },
+      {
+        "from": "third_party/gclientid/LICENSE",
+        "to": "third_party/gclientid/LICENSE"
+      }
+    ]
   }
 }
