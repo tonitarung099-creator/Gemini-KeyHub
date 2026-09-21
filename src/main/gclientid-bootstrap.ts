@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { OAuthBootstrapResult } from '../shared/types'
 
@@ -187,4 +187,9 @@ export async function bootstrapOAuthWithGclientid(): Promise<BridgeResult> {
   const outputDir = join(app.getPath('userData'), 'gclientid')
   await mkdir(outputDir, { recursive: true })
   return runBridge(outputDir)
+}
+
+export async function resetGclientidBootstrapState(): Promise<void> {
+  const outputDir = join(app.getPath('userData'), 'gclientid')
+  await rm(outputDir, { recursive: true, force: true })
 }
