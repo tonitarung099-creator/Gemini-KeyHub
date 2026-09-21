@@ -14,6 +14,7 @@ import {
   testStoredKey
 } from './google-cloud'
 import { clearAccessToken } from './google-auth'
+import { bootstrapOAuthWithGclientid } from './gclientid-bootstrap'
 import { loginWithGoogle } from './oauth'
 import {
   clearOAuthConfig,
@@ -114,6 +115,20 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('oauth:import-config', () => importOAuthJson())
+
+  ipcMain.handle('oauth:bootstrap', async () => {
+    const result = await bootstrapOAuthWithGclientid()
+    await saveOAuthConfig({
+      clientId: result.clientId,
+      clientSecret: result.clientSecret
+    })
+    return {
+      account: result.account,
+      projectId: result.projectId,
+      clientIdHint: result.clientIdHint,
+      warnings: result.warnings
+    }
+  })
 
   ipcMain.handle('oauth:clear-config', async () => {
     await clearOAuthConfig()
