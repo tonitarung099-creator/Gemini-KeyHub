@@ -1,52 +1,85 @@
 # Gemini KeyHub
 
-Portable Windows app untuk mengelola beberapa akun Google Cloud, project, dan Gemini API keys dari satu tempat.
+Portable Windows app untuk mengelola beberapa akun Google Cloud, project, dan Gemini authorization API keys dari satu tempat.
 
 ## Fitur
 
 - Login banyak akun Google dengan OAuth 2.0 resmi.
-- OAuth memakai **system browser + loopback 127.0.0.1**, sesuai pola aplikasi desktop Google.
-- Import file OAuth JSON agar tidak perlu copy-paste Client ID/Secret.
+- **Setup OAuth otomatis** memakai helper berbasis `AnswerDotAI/gclientid`.
+- Membuka Chrome khusus dengan profile terpisah untuk provisioning Google Cloud/OAuth.
+- Membuat project OAuth personal yang stabil untuk akun Google yang sedang login.
+- Membuat OAuth Client bertipe **Desktop app** lalu mengimpor Client ID/Secret ke Gemini KeyHub secara otomatis.
+- Fallback manual melalui Import OAuth JSON.
 - Refresh token disimpan terenkripsi memakai Electron `safeStorage`.
-- Menampilkan semua project Google Cloud aktif yang dapat diakses akun.
+- Menampilkan project Google Cloud aktif yang dapat diakses akun.
 - Membuat project Google Cloud baru langsung dari aplikasi.
-- Mengaktifkan API Keys API + Gemini API.
-- Membuat 1–20 Gemini API key per batch.
+- Mengaktifkan API Keys API, Gemini API, dan IAM API.
+- Membuat 1–20 Gemini **authorization keys** per batch.
+- Authorization key baru dibind ke service account khusus `gemini-keyhub@<project>.iam.gserviceaccount.com`.
 - Jika batch berhenti di tengah, key yang sudah berhasil tetap ditampilkan.
-- Key baru otomatis dibatasi ke `generativelanguage.googleapis.com`.
-- Test key lewat endpoint daftar model Gemini (tanpa generate content).
+- Key baru dibatasi ke `generativelanguage.googleapis.com`.
+- Key lama tanpa service-account binding ditandai **LEGACY**.
+- Test key lewat endpoint daftar model Gemini.
 - Reveal, Copy, Copy All, Export TXT, dan Export .env.
 - Build Windows berupa **single portable EXE**, tanpa installer.
+- CI menjalankan production dependency audit, TypeScript check, helper smoke test, dan portable build.
 
-## Memperbaiki error 401 invalid_client
+## Setup OAuth yang direkomendasikan
 
-Jika halaman Google menampilkan:
+1. Buka **OAuth Settings**.
+2. Klik **Setup OAuth Otomatis**.
+3. Gemini KeyHub membuka Chrome khusus dengan profile tersendiri.
+4. Login ke akun Google yang akan menjadi pemilik project jika diminta.
+5. Biarkan Chrome tetap terbuka sementara helper menyiapkan:
+   - Google Cloud project,
+   - OAuth app,
+   - scope Google Cloud,
+   - OAuth Desktop Client.
+6. Client ID/Secret diimpor kembali ke Gemini KeyHub secara otomatis.
+7. Klik **Login Google** di aplikasi untuk menambahkan akun ke account manager.
 
-```
-Error 401: invalid_client
-The OAuth client was not found
-```
+Chrome khusus provisioning bukan WebView Electron. Login Google tetap terjadi di browser Chrome asli.
 
-berarti OAuth Client ID yang digunakan tidak valid, sudah dihapus, atau bukan konfigurasi yang benar.
+## Jika masih muncul 401 invalid_client
 
-Cara yang disarankan:
+Versi lama aplikasi dapat meninggalkan Client ID yang sudah tidak valid di vault Windows.
 
-1. Buka **OAuth Settings** di Gemini KeyHub.
-2. Klik **Buka Google**.
-3. Di Google Cloud Console buat OAuth Client ID dengan Application type **Desktop app**.
-4. Download file JSON client tersebut.
-5. Kembali ke Gemini KeyHub lalu klik **Import OAuth JSON**.
-6. Klik **Tambah Akun Google**.
+Di **OAuth Settings**:
 
-> Jangan membuat login Google di WebView/Electron embedded browser. Google OAuth dapat menolak embedded user-agent. Gemini KeyHub membuka browser default Windows untuk proses login lalu menerima callback kembali di localhost.
+1. Klik **Reset OAuth lama**.
+2. Klik **Setup OAuth Otomatis**.
+3. Selesaikan login di Chrome khusus.
+4. Setelah setup selesai, klik **Login Google**.
+
+Fallback manual tetap tersedia melalui **Import OAuth JSON**.
+
+## gclientid
+
+Gemini KeyHub membundel helper yang menggunakan public provisioning functions dari:
+
+`AnswerDotAI/gclientid`
+
+Source:
+https://github.com/AnswerDotAI/gclientid
+
+License: Apache-2.0.
+
+Attribution dan salinan lisensi ada di:
+
+- `THIRD_PARTY_NOTICES.md`
+- `third_party/gclientid/LICENSE`
+
+Versi upstream yang dipakai oleh build dipin ke commit tertentu di GitHub Actions agar build reproducible.
 
 ## Keamanan
 
 Jangan pernah commit API key, OAuth client secret, refresh token, atau file OAuth JSON ke repository.
 
-Walaupun executable bersifat portable, token OAuth tetap disimpan terenkripsi per perangkat Windows. Ini mencegah file token polos ikut berpindah bersama EXE.
+Walaupun executable bersifat portable, token OAuth tetap disimpan terenkripsi per perangkat Windows menggunakan Electron `safeStorage`. File portable dapat dipindah, tetapi sesi login tidak disimpan sebagai token plaintext di samping EXE.
 
 ## Developer
+
+Untuk UI/TypeScript:
 
 ```bash
 npm install
@@ -54,20 +87,18 @@ npm run typecheck
 npm run dev
 ```
 
+Helper Python memerlukan `gclientid` dan dibundle oleh GitHub Actions memakai PyInstaller.
+
 ## Build portable Windows
 
-```bash
-npm install
-npm run typecheck
-npm run dist
-```
+Workflow GitHub Actions membangun helper terlebih dahulu, menjalankan self-test, lalu membundelnya ke Electron portable EXE.
 
 Output:
 
 ```
-release/Gemini-KeyHub-0.2.0-Portable.exe
+release/Gemini-KeyHub-0.4.0-Portable.exe
 ```
 
 ## Batasan
 
-Semua operasi tetap mengikuti IAM, quota, billing, dan kebijakan Google Cloud pada akun/project terkait. Banyak API key dalam project yang sama tidak menggandakan quota project.
+Semua operasi mengikuti IAM, quota, billing, security policy, dan kebijakan Google Cloud pada akun/project terkait. Banyak API key dalam project yang sama tidak menggandakan quota project. Akun yang tidak memiliki izin membuat service account atau binding authorization key akan menerima error IAM dari Google.
