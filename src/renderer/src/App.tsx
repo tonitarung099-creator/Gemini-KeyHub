@@ -819,10 +819,14 @@ export default function App() {
               <button
                 type="button"
                 className="primary"
-                disabled={Boolean(busy)}
+                disabled={Boolean(busy) || appState.oauthConfigured}
                 onClick={() => void autoSetupOAuth()}
               >
-                {busy === 'oauth-bootstrap' ? 'Menyiapkan OAuth…' : 'Setup OAuth Otomatis'}
+                {busy === 'oauth-bootstrap'
+                  ? 'Menyiapkan OAuth…'
+                  : appState.oauthConfigured
+                    ? 'Reset OAuth dulu'
+                    : 'Setup OAuth Otomatis'}
               </button>
             </div>
 
