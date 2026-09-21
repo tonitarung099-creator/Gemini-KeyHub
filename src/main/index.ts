@@ -13,7 +13,7 @@ import {
   listProjects,
   testStoredKey
 } from './google-cloud'
-import { clearAccessToken } from './google-auth'
+import { cacheAccessToken, clearAccessToken } from './google-auth'
 import { bootstrapOAuthWithGclientid } from './gclientid-bootstrap'
 import { loginWithGoogle } from './oauth'
 import {
@@ -22,7 +22,8 @@ import {
   isOAuthConfigured,
   listAccounts,
   removeStoredAccount,
-  saveOAuthConfig
+  saveOAuthConfig,
+  upsertAccount
 } from './vault'
 
 async function getState() {
@@ -122,8 +123,37 @@ function registerIpc(): void {
       clientId: result.clientId,
       clientSecret: result.clientSecret
     })
+
+    if (!result.accessToken || !result.refreshToken) {
+      throw new Error('Setup OAuth selesai tetapi token login akun tidak lengkap.')
+    }
+
+    const profileResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+      headers: { Authorization: `Bearer ${result.accessToken}` }
+    })
+    const profile = await profileResponse.json() as {
+      sub?: string
+      email?: string
+      name?: string
+      picture?: string
+    }
+
+    if (!profileResponse.ok || !profile.sub || !profile.email) {
+      throw new Error('OAuth berhasil tetapi profil akun Google tidak dapat dibaca.')
+    }
+
+    const account = {
+      id: profile.sub,
+      email: profile.email,
+      name: profile.name || profile.email,
+      picture: profile.picture
+    }
+
+    await upsertAccount(account, result.refreshToken)
+    cacheAccessToken(account.id, result.accessToken, 3600)
+
     return {
-      account: result.account,
+      account: profile.email,
       projectId: result.projectId,
       clientIdHint: result.clientIdHint,
       warnings: result.warnings
