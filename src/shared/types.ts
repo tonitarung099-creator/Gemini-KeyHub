@@ -65,10 +65,18 @@ export type KeyTestResult = {
   sampleModel?: string
 }
 
+export type OAuthBootstrapResult = {
+  account: string
+  projectId: string
+  clientIdHint: string
+  warnings: string[]
+}
+
 export type KeyHubApi = {
   getState: () => Promise<AppState>
   saveOAuthConfig: (input: OAuthConfigInput) => Promise<AppState>
   importOAuthConfig: () => Promise<AppState | null>
+  bootstrapOAuth: () => Promise<OAuthBootstrapResult>
   clearOAuthConfig: () => Promise<AppState>
   openOAuthSetup: () => Promise<void>
   loginGoogle: () => Promise<AccountSummary>
