@@ -34,9 +34,11 @@ Portable Windows app untuk mengelola beberapa akun Google Cloud, project, dan Ge
    - Google Cloud project,
    - OAuth app,
    - scope Google Cloud,
-   - OAuth Desktop Client.
-6. Client ID/Secret diimpor kembali ke Gemini KeyHub secara otomatis.
-7. Klik **Login Google** di aplikasi untuk menambahkan akun ke account manager.
+   - OAuth Desktop Client,
+   - otorisasi akun,
+   - API Cloud yang dibutuhkan.
+6. Client ID/Secret dan login akun diimpor kembali ke Gemini KeyHub secara otomatis.
+7. Setelah selesai, akun langsung muncul di account manager. Untuk menambahkan akun Google lain, gunakan **Tambah Akun Google**.
 
 Chrome khusus provisioning bukan WebView Electron. Login Google tetap terjadi di browser Chrome asli.
 
@@ -48,8 +50,8 @@ Di **OAuth Settings**:
 
 1. Klik **Reset OAuth lama**.
 2. Klik **Setup OAuth Otomatis**.
-3. Selesaikan login di Chrome khusus.
-4. Setelah setup selesai, klik **Login Google**.
+3. Selesaikan login dan consent di Chrome khusus.
+4. Setelah setup selesai, akun langsung masuk ke Gemini KeyHub.
 
 Fallback manual tetap tersedia melalui **Import OAuth JSON**.
 
