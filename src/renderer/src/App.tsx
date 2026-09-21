@@ -4,6 +4,7 @@ import type {
   AppState,
   CreatedKey,
   KeySummary,
+  KeyTestResult,
   ProjectSummary
 } from '../../shared/types'
 
@@ -39,12 +40,16 @@ export default function App() {
   const [keys, setKeys] = useState<KeySummary[]>([])
   const [revealed, setRevealed] = useState<Record<string, string>>({})
   const [createdKeys, setCreatedKeys] = useState<CreatedKey[]>([])
+  const [testResults, setTestResults] = useState<Record<string, KeyTestResult>>({})
   const [busy, setBusy] = useState('')
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [projectModalOpen, setProjectModalOpen] = useState(false)
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
+  const [newProjectName, setNewProjectName] = useState('Gemini KeyHub')
+  const [newProjectId, setNewProjectId] = useState('')
   const [count, setCount] = useState(20)
 
   const selectedAccount = useMemo(
@@ -67,21 +72,25 @@ export default function App() {
     if (!state.oauthConfigured) setSettingsOpen(true)
   }
 
-  async function loadProjects(accountId: string) {
+  async function loadProjects(accountId: string, preferredProjectNumber?: string) {
     setBusy('projects')
     setError('')
     setProjects([])
-    setSelectedProjectNumber('')
     setKeys([])
     setCreatedKeys([])
     setRevealed({})
+    setTestResults({})
     try {
       const next = await window.keyHub.listProjects(accountId)
       setProjects(next)
-      setSelectedProjectNumber(next[0]?.number || '')
+      const preferred = preferredProjectNumber && next.some((project) => project.number === preferredProjectNumber)
+        ? preferredProjectNumber
+        : next[0]?.number || ''
+      setSelectedProjectNumber(preferred)
       if (next.length === 0) setNotice('Tidak ada project ACTIVE yang terlihat pada akun ini.')
     } catch (err) {
       setError(errorMessage(err))
+      setSelectedProjectNumber('')
     } finally {
       setBusy('')
     }
@@ -92,6 +101,7 @@ export default function App() {
     setError('')
     setKeys([])
     setRevealed({})
+    setTestResults({})
     try {
       const next = await window.keyHub.listKeys(accountId, projectNumber)
       setKeys(next)
@@ -110,6 +120,11 @@ export default function App() {
 
   useEffect(() => {
     if (selectedAccountId) void loadProjects(selectedAccountId)
+    else {
+      setProjects([])
+      setSelectedProjectNumber('')
+      setKeys([])
+    }
   }, [selectedAccountId])
 
   useEffect(() => {
@@ -138,10 +153,28 @@ export default function App() {
     }
   }
 
+  async function importOAuth() {
+    setBusy('settings')
+    setError('')
+    try {
+      const state = await window.keyHub.importOAuthConfig()
+      if (!state) return
+      setAppState(state)
+      setClientId('')
+      setClientSecret('')
+      setSettingsOpen(false)
+      setNotice('OAuth Desktop JSON berhasil diimpor. Sekarang klik Tambah Akun Google.')
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy('')
+    }
+  }
+
   async function addAccount() {
     setBusy('login')
     setError('')
-    setNotice('Browser Google dibuka. Pilih akun yang ingin ditambahkan.')
+    setNotice('Browser default Windows dibuka. Pilih akun Google yang ingin ditambahkan.')
     try {
       const account = await window.keyHub.loginGoogle()
       await refreshState()
@@ -165,6 +198,28 @@ export default function App() {
       setAppState(state)
       setSelectedAccountId(state.accounts[0]?.id || '')
       setNotice('Akun dihapus dari Gemini KeyHub.')
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function createNewProject() {
+    if (!selectedAccount) return
+    setBusy('project-create')
+    setError('')
+    try {
+      const project = await window.keyHub.createProject({
+        accountId: selectedAccount.id,
+        projectId: newProjectId,
+        displayName: newProjectName
+      })
+      setProjectModalOpen(false)
+      setNotice(`Project ${project.displayName} berhasil dibuat.`)
+      setNewProjectName('Gemini KeyHub')
+      setNewProjectId('')
+      await loadProjects(selectedAccount.id, project.number)
     } catch (err) {
       setError(errorMessage(err))
     } finally {
@@ -202,9 +257,14 @@ export default function App() {
         count,
         prefix: 'gemini-keyhub'
       })
-      setCreatedKeys(result)
-      setNotice(`${result.length} API key berhasil dibuat.`)
+      setCreatedKeys(result.created)
+      if (result.error) {
+        setError(`${result.created.length}/${result.requested} key berhasil dibuat. ${result.error}`)
+      } else {
+        setNotice(`${result.created.length} API key berhasil dibuat.`)
+      }
       await loadKeys(selectedAccount.id, selectedProject.number)
+      setCreatedKeys(result.created)
     } catch (err) {
       setError(errorMessage(err))
     } finally {
@@ -233,6 +293,24 @@ export default function App() {
       setNotice(`${key.displayName || 'API key'} disalin.`)
     } catch (err) {
       setError(errorMessage(err))
+    }
+  }
+
+  async function testKey(key: KeySummary) {
+    if (!selectedAccount) return
+    setError('')
+    setTestResults((current) => ({
+      ...current,
+      [key.name]: { ok: false, message: 'Menguji…' }
+    }))
+    try {
+      const result = await window.keyHub.testKey(selectedAccount.id, key.name)
+      setTestResults((current) => ({ ...current, [key.name]: result }))
+    } catch (err) {
+      setTestResults((current) => ({
+        ...current,
+        [key.name]: { ok: false, message: errorMessage(err) }
+      }))
     }
   }
 
@@ -370,7 +448,7 @@ export default function App() {
           </div>
           <div className="status-pill">
             <span className="status-dot" />
-            Local encrypted vault
+            Portable · encrypted vault
           </div>
         </header>
 
@@ -400,6 +478,14 @@ export default function App() {
           </div>
 
           <div className="project-actions">
+            <button
+              type="button"
+              className="secondary"
+              disabled={!selectedAccount || Boolean(busy)}
+              onClick={() => setProjectModalOpen(true)}
+            >
+              + Project Baru
+            </button>
             <button
               type="button"
               className="secondary"
@@ -531,34 +617,59 @@ export default function App() {
                 <tr>
                   <th>Nama</th>
                   <th>API Key</th>
+                  <th>Status</th>
                   <th>Dibuat</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {keys.map((key) => (
-                  <tr key={key.name}>
-                    <td>
-                      <strong>{key.displayName || 'Untitled key'}</strong>
-                      <span className="subtle">{key.uid}</span>
-                    </td>
-                    <td>
-                      <code>{revealed[key.name] ? shortKey(revealed[key.name]) : '••••••••••••••••••••'}</code>
-                    </td>
-                    <td>{key.createTime ? new Date(key.createTime).toLocaleString('id-ID') : '—'}</td>
-                    <td className="row-actions">
-                      <button type="button" className="ghost compact" onClick={() => void revealKey(key)}>
-                        Reveal
-                      </button>
-                      <button type="button" className="secondary compact" onClick={() => void copyKey(key)}>
-                        Copy
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {keys.map((key) => {
+                  const result = testResults[key.name]
+                  return (
+                    <tr key={key.name}>
+                      <td>
+                        <strong>{key.displayName || 'Untitled key'}</strong>
+                        <span className="subtle">{key.uid}</span>
+                      </td>
+                      <td>
+                        <code>{revealed[key.name] ? shortKey(revealed[key.name]) : '••••••••••••••••••••'}</code>
+                      </td>
+                      <td>
+                        {result ? (
+                          <span
+                            className={
+                              result.message === 'Menguji…'
+                                ? 'key-status pending'
+                                : result.ok
+                                  ? 'key-status good'
+                                  : 'key-status bad'
+                            }
+                            title={result.message}
+                          >
+                            {result.message === 'Menguji…' ? 'Testing…' : result.ok ? 'Valid' : 'Error'}
+                          </span>
+                        ) : (
+                          <span className="key-status idle">Belum dites</span>
+                        )}
+                      </td>
+                      <td>{key.createTime ? new Date(key.createTime).toLocaleString('id-ID') : '—'}</td>
+                      <td className="row-actions">
+                        <button type="button" className="ghost compact" onClick={() => void testKey(key)}>
+                          Test
+                        </button>
+                        <button type="button" className="ghost compact" onClick={() => void revealKey(key)}>
+                          Reveal
+                        </button>
+                        <button type="button" className="secondary compact" onClick={() => void copyKey(key)}>
+                          Copy
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
                 {keys.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="empty">
+                    <td colSpan={5} className="empty">
                       {busy === 'keys' ? 'Membaca API keys…' : 'Belum ada key atau API Keys API belum aktif.'}
                     </td>
                   </tr>
@@ -569,13 +680,69 @@ export default function App() {
         </section>
       </main>
 
-      {settingsOpen && (
+      {projectModalOpen && (
         <div className="modal-backdrop">
           <div className="modal">
             <div className="modal-heading">
               <div>
+                <p className="section-label">PROJECT BARU</p>
+                <h2>Buat Google Cloud Project</h2>
+              </div>
+              <button type="button" className="ghost compact" onClick={() => setProjectModalOpen(false)}>
+                ✕
+              </button>
+            </div>
+            <p>
+              Project dibuat memakai akun Google yang sedang dipilih. Jika akun tidak memiliki izin membuat project,
+              Google akan menampilkan error aslinya.
+            </p>
+            <label className="field">
+              Nama project
+              <input
+                type="text"
+                value={newProjectName}
+                maxLength={30}
+                onChange={(event) => setNewProjectName(event.target.value)}
+                placeholder="Gemini KeyHub"
+              />
+            </label>
+            <label className="field">
+              Project ID
+              <input
+                type="text"
+                value={newProjectId}
+                maxLength={30}
+                onChange={(event) => setNewProjectId(event.target.value.toLowerCase())}
+                placeholder="gemini-keyhub-123456"
+              />
+            </label>
+            <p className="field-help">
+              Project ID harus unik secara global di Google Cloud dan tidak dapat diganti setelah dibuat.
+            </p>
+            <div className="modal-actions">
+              <button type="button" className="secondary" onClick={() => setProjectModalOpen(false)}>
+                Batal
+              </button>
+              <button
+                type="button"
+                className="primary"
+                disabled={!newProjectName.trim() || !newProjectId.trim() || busy === 'project-create'}
+                onClick={() => void createNewProject()}
+              >
+                {busy === 'project-create' ? 'Membuat…' : 'Buat Project'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {settingsOpen && (
+        <div className="modal-backdrop">
+          <div className="modal oauth-modal">
+            <div className="modal-heading">
+              <div>
                 <p className="section-label">SETUP SEKALI</p>
-                <h2>Google OAuth Desktop Client</h2>
+                <h2>Hubungkan Google OAuth</h2>
               </div>
               {appState.oauthConfigured && (
                 <button type="button" className="ghost compact" onClick={() => setSettingsOpen(false)}>
@@ -583,40 +750,94 @@ export default function App() {
                 </button>
               )}
             </div>
-            <p>
-              Masukkan kredensial OAuth Client bertipe <strong>Desktop app</strong>.
-              Nilainya disimpan terenkripsi secara lokal dan tidak dikirim ke repository.
-            </p>
-            <label className="field">
-              Client ID
-              <input
-                type="text"
-                value={clientId}
-                onChange={(event) => setClientId(event.target.value)}
-                placeholder="xxxxx.apps.googleusercontent.com"
-                autoComplete="off"
-              />
-            </label>
-            <label className="field">
-              Client Secret
-              <input
-                type="password"
-                value={clientSecret}
-                onChange={(event) => setClientSecret(event.target.value)}
-                placeholder="Opsional jika OAuth client Anda tidak memerlukannya"
-                autoComplete="off"
-              />
-            </label>
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="primary"
-                disabled={!clientId.trim() || busy === 'settings'}
-                onClick={() => void saveSettings()}
-              >
-                {busy === 'settings' ? 'Menyimpan…' : 'Simpan OAuth'}
-              </button>
+
+            <div className="setup-callout">
+              <strong>Gunakan OAuth Client bertipe Desktop app</strong>
+              <p>
+                Error 401 “OAuth client was not found” berarti Client ID yang dipakai Google tidak valid,
+                sudah dihapus, atau bukan Client ID yang benar.
+              </p>
             </div>
+
+            <div className="setup-steps">
+              <div className="setup-step">
+                <span>1</span>
+                <div>
+                  <strong>Buat OAuth Client Desktop app</strong>
+                  <p>Buka Google Cloud Credentials lalu pilih Create credentials → OAuth client ID → Desktop app.</p>
+                </div>
+                <button type="button" className="secondary small" onClick={() => void window.keyHub.openOAuthSetup()}>
+                  Buka Google
+                </button>
+              </div>
+              <div className="setup-step">
+                <span>2</span>
+                <div>
+                  <strong>Download JSON lalu import</strong>
+                  <p>Cara ini lebih aman dan menghindari salah copy Client ID atau Client Secret.</p>
+                </div>
+                <button
+                  type="button"
+                  className="primary small"
+                  disabled={busy === 'settings'}
+                  onClick={() => void importOAuth()}
+                >
+                  Import OAuth JSON
+                </button>
+              </div>
+              <div className="setup-step">
+                <span>3</span>
+                <div>
+                  <strong>Tambah akun Google</strong>
+                  <p>
+                    Login dibuka di browser default Windows. Google tidak mengizinkan login OAuth di browser
+                    tertanam/webview aplikasi desktop.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <details className="manual-config">
+              <summary>Masukkan Client ID secara manual</summary>
+              <label className="field">
+                Client ID
+                <input
+                  type="text"
+                  value={clientId}
+                  onChange={(event) => setClientId(event.target.value)}
+                  placeholder="xxxxx.apps.googleusercontent.com"
+                  autoComplete="off"
+                />
+              </label>
+              <label className="field">
+                Client Secret
+                <input
+                  type="password"
+                  value={clientSecret}
+                  onChange={(event) => setClientSecret(event.target.value)}
+                  placeholder="Client Secret dari Desktop app"
+                  autoComplete="off"
+                />
+              </label>
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={!clientId.trim() || busy === 'settings'}
+                  onClick={() => void saveSettings()}
+                >
+                  Simpan Manual
+                </button>
+              </div>
+            </details>
+
+            {appState.oauthConfigured && (
+              <div className="modal-actions">
+                <button type="button" className="primary" onClick={() => setSettingsOpen(false)}>
+                  Selesai
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
