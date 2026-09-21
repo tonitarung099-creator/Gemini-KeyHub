@@ -549,3 +549,124 @@ td .subtle {
     grid-template-columns: 1fr;
   }
 }
+
+
+.key-status {
+  display: inline-flex;
+  align-items: center;
+  min-width: 72px;
+  justify-content: center;
+  padding: 5px 8px;
+  border-radius: 999px;
+  border: 1px solid #2a3652;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.key-status.idle {
+  color: #7c89a4;
+  background: #101827;
+}
+
+.key-status.pending {
+  color: #c7d0ff;
+  border-color: rgba(98, 115, 232, 0.35);
+  background: rgba(98, 115, 232, 0.10);
+}
+
+.key-status.good {
+  color: #9ce1bf;
+  border-color: rgba(94, 211, 154, 0.35);
+  background: rgba(94, 211, 154, 0.10);
+}
+
+.key-status.bad {
+  color: #ffb7bd;
+  border-color: rgba(235, 102, 111, 0.35);
+  background: rgba(235, 102, 111, 0.10);
+}
+
+.oauth-modal {
+  width: min(720px, 100%);
+}
+
+.setup-callout {
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid rgba(235, 102, 111, 0.25);
+  border-radius: 12px;
+  background: rgba(235, 102, 111, 0.07);
+}
+
+.setup-callout strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #ffd0d4;
+  font-size: 12px;
+}
+
+.setup-callout p {
+  margin: 0;
+  color: #d4a9ad;
+  font-size: 11px;
+}
+
+.setup-steps {
+  display: grid;
+  gap: 10px;
+}
+
+.setup-step {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #202c44;
+  border-radius: 12px;
+  background: #0a1120;
+}
+
+.setup-step > span {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: #1b2540;
+  color: #cdd4ff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.setup-step strong {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 11px;
+}
+
+.setup-step p {
+  margin: 0;
+  font-size: 10px;
+}
+
+.manual-config {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #202c44;
+  border-radius: 12px;
+  background: #0a1120;
+}
+
+.manual-config summary {
+  cursor: pointer;
+  color: #9aa7c1;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.field-help {
+  margin: 8px 0 0;
+  color: #66728d;
+  font-size: 10px;
+}
