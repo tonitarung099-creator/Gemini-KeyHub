@@ -10,11 +10,10 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
-    "dist": "npm run build && electron-builder --win nsis"
+    "dist": "npm run build && electron-builder --win nsis --publish never"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^3.0.0",
-    "electron-store": "^10.0.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
