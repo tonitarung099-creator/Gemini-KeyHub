@@ -171,6 +171,30 @@ export default function App() {
     }
   }
 
+  async function autoSetupOAuth() {
+    setBusy('oauth-bootstrap')
+    setError('')
+    setNotice(
+      'Membuka Chrome khusus untuk setup OAuth. Login ke Google di jendela Chrome tersebut jika diminta, lalu biarkan aplikasi menyelesaikan setup.'
+    )
+    try {
+      const result = await window.keyHub.bootstrapOAuth()
+      await refreshState()
+      const warningText = result.warnings.length > 0
+        ? ` Catatan: ${result.warnings.join(' | ')}`
+        : ''
+      setNotice(
+        `OAuth otomatis siap untuk ${result.account}. Project: ${result.projectId}. Client: ${result.clientIdHint}.${warningText} Sekarang klik Login Google.`
+      )
+      setSettingsOpen(true)
+    } catch (err) {
+      setError(errorMessage(err))
+      setSettingsOpen(true)
+    } finally {
+      setBusy('')
+    }
+  }
+
   async function resetOAuth() {
     if (!confirm('Reset OAuth lokal? Semua login akun yang tersimpan akan dihapus dari aplikasi dan Anda harus login ulang. API key di Google Cloud tidak akan dihapus.')) {
       return
@@ -784,8 +808,26 @@ export default function App() {
               )}
             </div>
 
+            <div className="auto-setup-card">
+              <div>
+                <strong>Setup otomatis dari gclientid</strong>
+                <p>
+                  Direkomendasikan. Gemini KeyHub membuka Chrome khusus, menyiapkan project OAuth,
+                  membuat Desktop Client, lalu mengimpor Client ID/Secret otomatis.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="primary"
+                disabled={Boolean(busy)}
+                onClick={() => void autoSetupOAuth()}
+              >
+                {busy === 'oauth-bootstrap' ? 'Menyiapkan OAuth…' : 'Setup OAuth Otomatis'}
+              </button>
+            </div>
+
             <div className="setup-callout">
-              <strong>Gunakan OAuth Client bertipe Desktop app</strong>
+              <strong>Alternatif manual: OAuth Client bertipe Desktop app</strong>
               <p>
                 Error 401 “OAuth client was not found” berarti Client ID yang dipakai Google tidak valid,
                 sudah dihapus, atau bukan Client ID yang benar.
